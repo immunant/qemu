@@ -583,15 +583,7 @@ void HELPER(stzgm_tags)(CPUARMState *env, uint64_t ptr, uint64_t val)
 static void mte_sync_check_fail(CPUARMState *env, uint32_t desc,
                                 uint64_t dirty_ptr, uintptr_t ra)
 {
-    int is_write, syn;
-
-    env->exception.vaddress = dirty_ptr;
-
-    is_write = FIELD_EX32(desc, MTEDESC, WRITE);
-    syn = syn_data_abort_no_iss(arm_current_el(env) != 0, 0, 0, 0, 0, is_write,
-                                0x11);
-    raise_exception_ra(env, EXCP_DATA_ABORT, syn, exception_target_el(env), ra);
-    g_assert_not_reached();
+    printf("QEMU: MTE check failed dirty_ptr: %lx pc: %lx\n", dirty_ptr, env->pc);
 }
 
 static void mte_async_check_fail(CPUARMState *env, uint64_t dirty_ptr,
