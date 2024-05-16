@@ -70,7 +70,7 @@
 char *exec_path;
 char real_exec_path[PATH_MAX];
 
-static bool opt_one_insn_per_tb;
+bool opt_one_insn_per_tb;
 static const char *argv0;
 static const char *gdbstub;
 static envlist_t *envlist;

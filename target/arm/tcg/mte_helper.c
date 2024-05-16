@@ -29,6 +29,7 @@
 #include "hw/core/tcg-cpu-ops.h"
 #include "qapi/error.h"
 #include "qemu/guest-random.h"
+#include "disas/disas.h"
 
 
 static int choose_nonexcluded_tag(int tag, int offset, uint16_t exclude)
@@ -580,10 +581,24 @@ void HELPER(stzgm_tags)(CPUARMState *env, uint64_t ptr, uint64_t val)
     }
 }
 
+void aarch64_cpu_dump_state(struct CPUState *, FILE *, int);
+extern bool opt_one_insn_per_tb;
+
 static void mte_sync_check_fail(CPUARMState *env, uint32_t desc,
                                 uint64_t dirty_ptr, uintptr_t ra)
 {
-    printf("QEMU: MTE check failed dirty_ptr: %lx pc: %lx\n", dirty_ptr, env->pc);
+    FILE *logfile = qemu_log_trylock();
+    assert(logfile);
+    // NOTE: env is the CPU state at translation block compile-time so it will
+    // very likely not be the correct CPU state at the time of the failed tag
+    // check unless you run qemu with -one-insn-per-tb
+    assert(opt_one_insn_per_tb && "Rerun with -one-insn-per-tb");
+    printf("\nQEMU: MTE check failed dirty_ptr: %lx pc: %lx, ra: %s\n",
+        dirty_ptr, env->pc, lookup_symbol(env->pc));
+    struct CPUState *cpu = &(container_of(env, struct ArchCPU, env)->parent_obj);
+    target_disas(logfile, cpu, env->pc - 8, 4 * 5);
+    aarch64_cpu_dump_state(cpu, logfile, 0 /* set to CPU_DUMP_FPU for entire CPU state */);
+    qemu_log_unlock(logfile);
 }
 
 static void mte_async_check_fail(CPUARMState *env, uint64_t dirty_ptr,
