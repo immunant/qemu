@@ -582,11 +582,13 @@ void HELPER(stzgm_tags)(CPUARMState *env, uint64_t ptr, uint64_t val)
 }
 
 void aarch64_cpu_dump_state(struct CPUState *, FILE *, int);
-extern bool opt_one_insn_per_tb;
+extern bool opt_one_insn_per_tb, swallow_mte_exns;
 
 static void mte_sync_check_fail(CPUARMState *env, uint32_t desc,
                                 uint64_t dirty_ptr, uintptr_t ra)
 {
+    int is_write, syn;
+
     FILE *logfile = qemu_log_trylock();
     assert(logfile);
     // NOTE: env is the CPU state at translation block compile-time so it will
@@ -599,6 +601,16 @@ static void mte_sync_check_fail(CPUARMState *env, uint32_t desc,
     target_disas(logfile, cpu, env->pc - 8, 4 * 5);
     aarch64_cpu_dump_state(cpu, logfile, 0 /* set to CPU_DUMP_FPU for entire CPU state */);
     qemu_log_unlock(logfile);
+
+    if (!swallow_mte_exns) {
+        env->exception.vaddress = dirty_ptr;
+
+        is_write = FIELD_EX32(desc, MTEDESC, WRITE);
+        syn = syn_data_abort_no_iss(arm_current_el(env) != 0, 0, 0, 0, 0, is_write,
+                                    0x11);
+        raise_exception_ra(env, EXCP_DATA_ABORT, syn, exception_target_el(env), ra);
+        g_assert_not_reached();
+    }
 }
 
 static void mte_async_check_fail(CPUARMState *env, uint64_t dirty_ptr,
